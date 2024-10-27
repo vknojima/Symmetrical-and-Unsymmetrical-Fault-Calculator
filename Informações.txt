@@ -2,9 +2,7 @@
 
 --> Vou começar o projeto com faltas simétricas e depois partir para faltas assimétricas
 
-- Implementar um loop que interrompe o programa em qualquer momento que o input() é "Sair"
-- Implementar a coleta dos elementos que compões o Sistema de Potência
-- Tentar utilizar uma variável global dentro de uma classe
-	- Caso isso seja possível: Criar matriz uma matriz a partir do "num_Barras" e "barras_conectadas" dentro da classe dos elementos.
+- Implementar linhas para interromper o código a partir de certos erros.
+- Descobrir como importar um arquivo Python para um segundo arquivo Python. Esse segundo arquivo será um arquivo teste. (Opcional)
 
 - Ybarra será montada acessando o vetor "barras_conectadas" de cada objeto da lista "ele_Sistema". (Devo utilizar um LOOP)
