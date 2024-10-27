@@ -1,4 +1,5 @@
 import ast
+import numpy as np
 
 ################################################################### INSERINDO TODOS OS ELEMENTOS DO SISTEMA ###################################################################
 
@@ -96,7 +97,7 @@ while True:
         trafo = Transformador(nome_trafo, potencia_nominal_trafo, reatancia_positiva_trafo, barra_conectada_trafo)
         ele_Sistema.append(trafo)
 
-################################################################### FUNÇÕES AUXILIARES PARA REALIZAR TESTES ###################################################################
+################################################################### FUNÇÕES AUXILIARES ###################################################################
 
 def print_elements():
     for i in range(len(ele_Sistema)):
@@ -107,4 +108,12 @@ def print_elements():
         else:
             print(ele_Sistema[i].nome, ele_Sistema[i].Sn, ele_Sistema[i].x_pos, ele_Sistema[i].barras_conectadas)
 
+def admitancia(impedancia):
+    return 1/impedancia
+
+
 ################################################################### CALCULANDO YBARRA E ZBARRA ###################################################################
+
+Ybarra = np.zeros(num_barras, num_barras)
+
+

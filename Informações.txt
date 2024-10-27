@@ -6,3 +6,6 @@
 - Descobrir como importar um arquivo Python para um segundo arquivo Python. Esse segundo arquivo será um arquivo teste. (Opcional)
 
 - Ybarra será montada acessando o vetor "barras_conectadas" de cada objeto da lista "ele_Sistema". (Devo utilizar um LOOP)
+	- Vou fazer um checksum na lista "barras_conecatadas" para saber se vai ser um elemento da diagonal principal ou da diagonal principal e elemento adjascente
+		- checksum == 1: elemento da matriz principal
+		- checksum == 2: elemento da matriz principal e dos elementos adjascentes
