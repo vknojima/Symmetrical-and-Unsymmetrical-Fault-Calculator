@@ -1,0 +1,12 @@
+-----> Programa que simule um sistema elétrico de potência em condições de faltas simétricas e assimétricas
+
+--> Vou começar o projeto com faltas simétricas e depois implementar para faltas assimétricas
+
+--> (Códigos Auxiliares)
+- Implementar linhas para interromper o código a partir de certos erros.
+- Descobrir como importar um arquivo Python para um segundo arquivo Python. Esse segundo arquivo será um arquivo teste. (Opcional)
+
+--> (Códigos Principais)
+- Implementar esses cálculos com números complexos
+- Cálculo da corrente de curto, tensões nos barramentos, correntes de contribuição
+- Pesquisar uma forma boa para esses resultados
