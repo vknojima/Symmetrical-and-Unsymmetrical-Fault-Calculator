@@ -9,3 +9,10 @@
 - Como montar a Ybarra de sequência zero
 - Cálculo da corrente de curto, tensões nos barramentos, correntes de contribuição
 - Pesquisar uma forma boa para esses resultados (depois)
+
+
+
+
+Rascunho
+
+nome: str, Sn: int, x_pos: complex, x_zero: complex, barras_conectadas: list, conex_trafo: str

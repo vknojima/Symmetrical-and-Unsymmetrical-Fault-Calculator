@@ -6,7 +6,7 @@ import numpy as np
 barras_Sistema = [] # Armazanando as barras do sistema
 ele_Sistema = [] # Armazenando os elementos do sistema
 
-num_barras = 4 # Inserir essa variável de acordo com o número de barras do sistema (Esse teste é feito desse jeito porque é mais rápido)
+num_barras = 7 # Inserir essa variável de acordo com o número de barras do sistema (Esse teste é feito desse jeito porque é mais rápido)
 
 # num_barras = int(input("Quantas barras o Sistema de Potencia tem: "))
 # num_maquinas = int(input("Quantas maquinas o Sistema de Potencia tem: "))
@@ -37,6 +37,7 @@ class Maquina():
         self.x_zero = x_zero
         self.conex_ger = conex_ger # Na hora de montar a matriz de sequência zero, vamos considerar primeiro a variável "conex_ger". Se essas variável corresponder a um "Y aterrado", vamos utilizar a variável "x_aterramento", caso contrário "x_aterramento" será complementar descartado.
         self.x_aterramento = x_aterramento
+        self.barras_conectadas_1 = barras_conectadas
         self.barras_conectadas = [0] * num_barras
         for i in range(len(barras_conectadas)):
             if barras_conectadas[i] > num_barras:
@@ -130,6 +131,15 @@ def admitancia(impedancia):
 def round_3(valor):
     return np.round(valor, 3)
 
+def transformadaFontescue(X_zero, X_pos, X_neg):
+    X_a = X_zero + X_pos + X_neg
+    X_b = X_zero + X_pos*(-0.5-0.866j) + X_neg*(-0.5+0.866j)
+    X_c = X_zero + X_pos*(-0.5+0.866j) + X_neg*(-0.5-0.866j)
+    return [[float(round_3(np.abs(X_a))), float(round_3(np.angle(X_a, deg=True)))], [float(round_3(np.abs(X_b))), float(round_3(np.angle(X_b, deg=True)))], [float(round_3(np.abs(X_c))), float(round_3(np.angle(X_c, deg=True)))]]
+
+def correnteBase(barraFalta):
+    return ((100*10**6)/(np.sqrt(3)*barraFalta.Vb*10**3))/(10**3) # Em kA
+
 ################################################################### CALCULANDO YBARRA E ZBARRA DE SEQ. POS., NEG. E ZERO ###################################################################
 
 def Ybarra_pos_neg():
@@ -158,7 +168,7 @@ def Ybarra_zero():
                 for j in range(len(ele_Sistema[i].barras_conectadas)):
                     if ele_Sistema[i].barras_conectadas[j] == 1:
                         x_serie = ele_Sistema[i].x_zero + (ele_Sistema[i].x_aterramento)*3
-                        Ybarra[j,j] += round_3(admitancia(ele_Sistema[i].x_serie))
+                        Ybarra[j,j] += round_3(admitancia(x_serie))
                         break # Estou sempre considerando que o gerador está conecatado a somente uma barra
             # Se a conexão de aterramento for "D" ou "Y", não vamos adicioanar ou modificar nada
         elif ele_Sistema[i].nome[0] == "L": # Acessando um elemento do tipo Linha de Transmissão
@@ -170,24 +180,56 @@ def Ybarra_zero():
             Ybarra[pos_EntreBarras[0],pos_EntreBarras[1]] += round_3(-admitancia(ele_Sistema[i].x_zero))
             Ybarra[pos_EntreBarras[1],pos_EntreBarras[0]] += round_3(-admitancia(ele_Sistema[i].x_zero))
         else: # Acessando um elemento do tipo Transformador
-            config = 0
-            for j in range(len(ele_Sistema[i].barras_conectadas)):
-                if ele_Sistema[i].barras_conectadas[j] == "Y_aterrado":
-                    config += 2
-                elif ele_Sistema[i].barras_conectadas[j] == "Y":
-                    config += 1
-
-
+            if ele_Sistema[i].list_conex_trafo == ["Y_aterrado","D"] or ["D","Y_aterrado"]:
+                pos_EntreBarras = []
+                posicao = 0
+                x_serie = ele_Sistema[i].x_zero + (ele_Sistema[i].x_aterramento)*3
+                if ele_Sistema[i].list_conex_trafo[1] == "Y_aterrado":
+                    posicao = 1
+                for j in range(len(ele_Sistema[i].barras_conectadas)):
+                    if ele_Sistema[i].barras_conectadas[j] == 1:
+                        pos_EntreBarras.append(j)
+                Ybarra[pos_EntreBarras[posicao],pos_EntreBarras[posicao]] += round_3(admitancia(x_serie))
+            elif ele_Sistema[i].list_conex_trafo == ["Y_aterrado","Y_aterrado"]:
+                x_serie = 2*(3*(ele_Sistema[i].x_aterramento)) + ele_Sistema[i].x_zero
+                pos_EntreBarras = []
+                for j in range(len(ele_Sistema[i].barras_conectadas)):
+                    if ele_Sistema[i].barras_conectadas[j] == 1:
+                        pos_EntreBarras.append(ele_Sistema[i].barras_conectadas[j])
+                Ybarra[pos_EntreBarras[0],pos_EntreBarras[1]] += round_3(-admitancia(x_serie))
+                Ybarra[pos_EntreBarras[1],pos_EntreBarras[0]] += round_3(-admitancia(x_serie))
     return Ybarra            
 
 def Zbarra(Ybarra):
    return np.round(np.linalg.inv(Ybarra), 3)
 
-# print(Ybarra)
-# print("\n")
-# print(Zbarra)
+################################################################### CURTO CIRCUITO SIMÉTRICO ###################################################################
 
-################################################################### CURTO CIRCUITO TRIFÁSICO ###################################################################
+def correnteFaltaTrifasica(barraFalta, Zbarra_pos):
+    #Considerando um curto na fase "a"
+    Vpf = 1 + 0j
+    numero = int(barraFalta.nome[1])-1
+    If = Vpf/(Zbarra_pos[numero,numero])
+    return If
 
+def correnteContribuicao(If, barraFalta, Zbarra_pos):
+    numero = int(barraFalta.nome[1])-1
+    tensoesBarras = {} # Tensoes das barras sem correção
+    correntesDeContribuicao = {} # Correntes de contribuicao
+    Vpf = 1 + 0j
+    for i in range(len(ele_Sistema)):
+        if ele_Sistema[i].nome[0] == "M": #Maquina
+            barra = int(ele_Sistema[i].nome[1])-1
+            V_pos = Vpf - If*(Zbarra_pos[numero,barra])
+            Vabc = transformadaFontescue(0, V_pos, 0)
+            tensoesBarras[ele_Sistema[i].nome] = Vabc
+            Icontribuicao_pos = (Vpf-V_pos)/(ele_Sistema[i].x_pos)
+            Iabc_contribuicao = transformadaFontescue(0, Icontribuicao_pos*correnteBase(barras_Sistema[2]), 0)
+            correntesDeContribuicao[ele_Sistema[i].nome] = Iabc_contribuicao
+    
+    return tensoesBarras, correntesDeContribuicao
 
- 
+# def correcaoContricuicao(): # Analisar o grupo de tensões e os transformadores. Onde o curto está sendo realizado?
+
+################################################################### CURTO CIRCUITO ASSIMÉTRICO ###################################################################
+
