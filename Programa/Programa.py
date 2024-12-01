@@ -6,7 +6,7 @@ import numpy as np
 barras_Sistema = [] # Armazanando as barras do sistema
 ele_Sistema = [] # Armazenando os elementos do sistema
 
-num_barras = 4
+num_barras = 4 # Inserir essa variável de acordo com o número de barras do sistema (Esse teste é feito desse jeito porque é mais rápido)
 
 # num_barras = int(input("Quantas barras o Sistema de Potencia tem: "))
 # num_maquinas = int(input("Quantas maquinas o Sistema de Potencia tem: "))
@@ -61,14 +61,16 @@ class LinhaTransmissao():
             self.barras_conectadas[loc_SelfBarras_Conectadas] = self.barras_conectadas[loc_SelfBarras_Conectadas] + 1
 
 class Transformador():
-    def __init__(self, nome: str, Sn: int, x_pos: complex, x_zero: complex, barras_conectadas: list, conex_trafo: list):
-        self.nome = "TRAFO" + nome
+    def __init__(self, nome: str, Sn: int, x_pos: complex, x_zero: complex, x_aterramento: complex, barras_conectadas: list, conex_trafo: str):
+        self.nome = "T" + nome
         self.Sn = Sn
         self.x_pos = x_pos # reatância subtransitória em PU e na base do sistema
-        self.xneg = x_pos
+        self.x_neg = x_pos
         self.x_zero = x_zero
+        self.x_aterramento = x_aterramento
         self.barras_conectadas = [0] * num_barras
         self.conex_trafo = conex_trafo # O primário corresponde a barra na primeira posição da lista "barras_conectadas" e o secundário a barra da segunda posição.
+        self.list_conex_trafo = conex_trafo.split("-")
         for i in range(len(barras_conectadas)):
             if barras_conectadas[i] > num_barras:
                 print("Número da barra é maior que a quantidade totais de barras.")
@@ -113,14 +115,14 @@ class Transformador():
 
 ################################################################### FUNÇÕES AUXILIARES ###################################################################
 
-def print_elements():
+def print_elements(): # Atualizar, pois adicionei atributos novos para as classes do sistema
     for i in range(len(ele_Sistema)):
         if ele_Sistema[i].nome[0] == "M":
-            print(ele_Sistema[i].nome, ele_Sistema[i].Vn, ele_Sistema[i].Sn, ele_Sistema[i].x_pos, ele_Sistema[i].barras_conectadas)
+            print(ele_Sistema[i].nome, ele_Sistema[i].Vn, ele_Sistema[i].Sn, ele_Sistema[i].x_pos, ele_Sistema[i].x_zero, ele_Sistema[i].conex_ger, ele_Sistema[i].x_aterramento, ele_Sistema[i].barras_conectadas, "\n")
         elif ele_Sistema[i].nome[0] == "L":
-            print(ele_Sistema[i].nome, ele_Sistema[i].Sn, ele_Sistema[i].x_pos, ele_Sistema[i].barras_conectadas)
+            print(ele_Sistema[i].nome, ele_Sistema[i].Sn, ele_Sistema[i].x_pos, ele_Sistema[i].x_zero, ele_Sistema[i].barras_conectadas, "\n")
         else:
-            print(ele_Sistema[i].nome, ele_Sistema[i].Sn, ele_Sistema[i].x_pos, ele_Sistema[i].barras_conectadas)
+            print(ele_Sistema[i].nome, ele_Sistema[i].Sn, ele_Sistema[i].x_pos, ele_Sistema[i].x_zero, ele_Sistema[i].x_aterramento, ele_Sistema[i].barras_conectadas,  ele_Sistema[i].list_conex_trafo, "\n")
 
 def admitancia(impedancia):
     return 1/impedancia
@@ -131,14 +133,14 @@ def round_3(valor):
 ################################################################### CALCULANDO YBARRA E ZBARRA DE SEQ. POS., NEG. E ZERO ###################################################################
 
 def Ybarra_pos_neg():
-    Ybarra = np.zeros((num_barras, num_barras), dtype=complex)  # Initialize Ybarra as a complex matrix
+    Ybarra = np.zeros((num_barras, num_barras), dtype=complex) 
     for i in range(len(ele_Sistema)):
-        if sum(ele_Sistema[i].barras_conectadas) == 1: 
+        if ele_Sistema[i].nome[0] == "M": 
             for j in range(len(ele_Sistema[i].barras_conectadas)):
                 if ele_Sistema[i].barras_conectadas[j] == 1:
                     Ybarra[j,j] += round_3(admitancia(ele_Sistema[i].x_pos))
                     break
-        elif sum(ele_Sistema[i].barras_conectadas) == 2:
+        else:
             pos_EntreBarras = []
             for j in range(len(ele_Sistema[i].barras_conectadas)):
                 if ele_Sistema[i].barras_conectadas[j] == 1:
@@ -148,7 +150,37 @@ def Ybarra_pos_neg():
             Ybarra[pos_EntreBarras[1],pos_EntreBarras[0]] += round_3(-admitancia(ele_Sistema[i].x_pos))
     return Ybarra
 
-def Zbarra_pos_neg(Ybarra):
+def Ybarra_zero():
+    Ybarra = np.zeros((num_barras, num_barras), dtype=complex)
+    for i in range(len(ele_Sistema)):
+        if ele_Sistema[i].nome[0] == "M": # Acessando um elemento do tipo Máquina Síncrona
+            if ele_Sistema[i].conex_ger == "Y_aterrado": # Nesse caso, vamos adicionar as impedâncias que estão conecatadas na respectiva barra
+                for j in range(len(ele_Sistema[i].barras_conectadas)):
+                    if ele_Sistema[i].barras_conectadas[j] == 1:
+                        x_serie = ele_Sistema[i].x_zero + (ele_Sistema[i].x_aterramento)*3
+                        Ybarra[j,j] += round_3(admitancia(ele_Sistema[i].x_serie))
+                        break # Estou sempre considerando que o gerador está conecatado a somente uma barra
+            # Se a conexão de aterramento for "D" ou "Y", não vamos adicioanar ou modificar nada
+        elif ele_Sistema[i].nome[0] == "L": # Acessando um elemento do tipo Linha de Transmissão
+            pos_EntreBarras = []
+            for j in range(len(ele_Sistema[i].barras_conectadas)):
+                if ele_Sistema[i].barras_conectadas[j] == 1:
+                    pos_EntreBarras.append(j)
+                    Ybarra[j,j] += round_3(admitancia(ele_Sistema[i].x_zero))
+            Ybarra[pos_EntreBarras[0],pos_EntreBarras[1]] += round_3(-admitancia(ele_Sistema[i].x_zero))
+            Ybarra[pos_EntreBarras[1],pos_EntreBarras[0]] += round_3(-admitancia(ele_Sistema[i].x_zero))
+        else: # Acessando um elemento do tipo Transformador
+            config = 0
+            for j in range(len(ele_Sistema[i].barras_conectadas)):
+                if ele_Sistema[i].barras_conectadas[j] == "Y_aterrado":
+                    config += 2
+                elif ele_Sistema[i].barras_conectadas[j] == "Y":
+                    config += 1
+
+
+    return Ybarra            
+
+def Zbarra(Ybarra):
    return np.round(np.linalg.inv(Ybarra), 3)
 
 # print(Ybarra)

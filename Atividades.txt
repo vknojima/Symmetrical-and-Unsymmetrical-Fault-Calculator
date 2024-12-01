@@ -4,9 +4,8 @@
 
 --> (Códigos Auxiliares)
 - Implementar linhas para interromper o código a partir de certos erros.
-- Descobrir como importar um arquivo Python para um segundo arquivo Python. Esse segundo arquivo será um arquivo teste. (Opcional)
 
 --> (Códigos Principais)
-- Implementar esses cálculos com números complexos
+- Como montar a Ybarra de sequência zero
 - Cálculo da corrente de curto, tensões nos barramentos, correntes de contribuição
-- Pesquisar uma forma boa para esses resultados
+- Pesquisar uma forma boa para esses resultados (depois)
