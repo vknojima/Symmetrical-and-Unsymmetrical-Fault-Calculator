@@ -1,1 +1,2 @@
-correnteBase
+
+print(d1)

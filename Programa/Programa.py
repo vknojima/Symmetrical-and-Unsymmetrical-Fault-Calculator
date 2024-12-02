@@ -6,6 +6,7 @@ import numpy as np
 barras_Sistema = [] # Armazanando as barras do sistema
 ele_Sistema = [] # Armazenando os elementos do sistema
 
+Sb = 100*10**6
 num_barras = 7 # Inserir essa variável de acordo com o número de barras do sistema (Esse teste é feito desse jeito porque é mais rápido)
 
 # num_barras = int(input("Quantas barras o Sistema de Potencia tem: "))
@@ -33,7 +34,7 @@ class Maquina():
         self.Vn = Vn
         self.Sn = Sn
         self.x_pos = x_pos
-        self.xneg = x_pos
+        self.x_neg = x_pos
         self.x_zero = x_zero
         self.conex_ger = conex_ger # Na hora de montar a matriz de sequência zero, vamos considerar primeiro a variável "conex_ger". Se essas variável corresponder a um "Y aterrado", vamos utilizar a variável "x_aterramento", caso contrário "x_aterramento" será complementar descartado.
         self.x_aterramento = x_aterramento
@@ -51,7 +52,7 @@ class LinhaTransmissao():
         self.nome = "LT" + nome
         self.Sn = Sn
         self.x_pos = x_pos # reatância subtransitória em PU e na base do sistema
-        self.xneg = x_pos
+        self.x_neg = x_pos
         self.x_zero = x_zero
         self.barras_conectadas = [0] * num_barras
         for i in range(len(barras_conectadas)):
@@ -137,8 +138,11 @@ def transformadaFontescue(X_zero, X_pos, X_neg):
     X_c = X_zero + X_pos*(-0.5+0.866j) + X_neg*(-0.5-0.866j)
     return [[float(round_3(np.abs(X_a))), float(round_3(np.angle(X_a, deg=True)))], [float(round_3(np.abs(X_b))), float(round_3(np.angle(X_b, deg=True)))], [float(round_3(np.abs(X_c))), float(round_3(np.angle(X_c, deg=True)))]]
 
-def correnteBase(barraFalta):
-    return ((100*10**6)/(np.sqrt(3)*barraFalta.Vb*10**3))/(10**3) # Em kA
+def correnteBase(barraFalta,Sb):
+    return ((Sb)/(np.sqrt(3)*barraFalta.Vb*10**3))/(10**3) # Em kA
+
+def impedanciaBase(barraFalta,Sb):
+    return ((barraFalta.Vb*10**3)**2)/(Sb)
 
 ################################################################### CALCULANDO YBARRA E ZBARRA DE SEQ. POS., NEG. E ZERO ###################################################################
 
@@ -203,33 +207,98 @@ def Ybarra_zero():
 def Zbarra(Ybarra):
    return np.round(np.linalg.inv(Ybarra), 3)
 
-################################################################### CURTO CIRCUITO SIMÉTRICO ###################################################################
+################################################################### CURTO CIRCUITO TRIFÁSICO ###################################################################
 
-def correnteFaltaTrifasica(barraFalta, Zbarra_pos):
-    #Considerando um curto na fase "a"
+def correnteFaltaTrifasica(barraFalta, Zbarra_pos, Zfalta):
+    #Considerando referência na fase "a"
     Vpf = 1 + 0j
-    numero = int(barraFalta.nome[1])-1
-    If = Vpf/(Zbarra_pos[numero,numero])
+    Zfalta = Zfalta/impedanciaBase(barraFalta, 100*10**6)
+    numeroBarraCurto = int(barraFalta.nome[1])-1
+    If = Vpf/(Zbarra_pos[numeroBarraCurto,numeroBarraCurto]+Zfalta)
     return If
 
-def correnteContribuicao(If, barraFalta, Zbarra_pos):
-    numero = int(barraFalta.nome[1])-1
+def correnteContribuicaoTrifasica(If, barraFalta, Zbarra_pos):
+    numeroBarraCurto = int(barraFalta.nome[1])-1
     tensoesBarras = {} # Tensoes das barras sem correção
     correntesDeContribuicao = {} # Correntes de contribuicao
     Vpf = 1 + 0j
     for i in range(len(ele_Sistema)):
         if ele_Sistema[i].nome[0] == "M": #Maquina
             barra = int(ele_Sistema[i].nome[1])-1
-            V_pos = Vpf - If*(Zbarra_pos[numero,barra])
+            V_pos = Vpf - If*(Zbarra_pos[numeroBarraCurto,barra])
             Vabc = transformadaFontescue(0, V_pos, 0)
             tensoesBarras[ele_Sistema[i].nome] = Vabc
             Icontribuicao_pos = (Vpf-V_pos)/(ele_Sistema[i].x_pos)
-            Iabc_contribuicao = transformadaFontescue(0, Icontribuicao_pos*correnteBase(barras_Sistema[2]), 0)
+            Iabc_contribuicao = transformadaFontescue(0, Icontribuicao_pos*correnteBase(barraFalta, 100*10**6))
             correntesDeContribuicao[ele_Sistema[i].nome] = Iabc_contribuicao
     
     return tensoesBarras, correntesDeContribuicao
 
 # def correcaoContricuicao(): # Analisar o grupo de tensões e os transformadores. Onde o curto está sendo realizado?
 
-################################################################### CURTO CIRCUITO ASSIMÉTRICO ###################################################################
+################################################################### CURTO CIRCUITO MONOFÁSICO ###################################################################
 
+def correnteFaltaMonofasica(barraFalta, Zbarra_pos_neg, Zbarra_zero, Zfalta):
+    #Considerando um curto na fase "a" e referência nessa mesma fase
+    Vpf = 1 + 0j
+    Zfalta = Zfalta/impedanciaBase(barraFalta, 100*10**6)
+    numeroBarraCurto = int(barraFalta.nome[1])-1
+    If_zero = Vpf/(Zbarra_pos_neg[numeroBarraCurto,numeroBarraCurto]*2+Zbarra_zero[numeroBarraCurto,numeroBarraCurto]+3*Zfalta)
+    If = 3*If_zero
+    return If, If_zero
+
+def correnteContribuicaoMonofasica(If_zero, barraFalta, Zbarra_pos_neg, Zbarra_zero):
+    numeroBarraCurto = int(barraFalta.nome[1])-1    
+    tensoesBarras = {} # Tensoes das barras sem correção
+    correntesDeContribuicao = {} # Correntes de contribuicao
+    Vpf = 1 + 0j
+    for i in range(len(ele_Sistema)):
+        if ele_Sistema[i].nome[0] == "M": #Maquina
+            barra = int(ele_Sistema[i].nome[1])-1
+            barraMaquina = barras_Sistema[barra]
+            V_pos = Vpf - If_zero*(Zbarra_pos_neg[numeroBarraCurto,barra])
+            V_neg = -If_zero*(Zbarra_pos_neg[numeroBarraCurto,barra])
+            V_zero = -If_zero*(Zbarra_zero[numeroBarraCurto,barra])
+            Vabc = transformadaFontescue(V_zero, V_pos, V_neg)
+            tensoesBarras[ele_Sistema[i].nome] = Vabc
+            
+            Icontribuicao_pos = (Vpf-V_pos)/(ele_Sistema[i].x_pos)
+            Icontribuicao_neg = (-V_neg)/(ele_Sistema[i].x_neg)
+            Icontribuicao_zero = (-V_zero)/(ele_Sistema[i].x_zero+3*ele_Sistema[i].x_aterramento)
+            Iabc = transformadaFontescue(Icontribuicao_zero*correnteBase(barraMaquina, 100*10**6),Icontribuicao_pos*correnteBase(barraMaquina, 100*10**6),Icontribuicao_neg*correnteBase(barraMaquina, 100*10**6))
+            correntesDeContribuicao[ele_Sistema[i].nome] = Iabc
+
+    return tensoesBarras, correntesDeContribuicao
+
+################################################################### CURTO CIRCUITO BIFÁSICO ###################################################################
+
+def correnteFaltaBifasica(barraFalta, Zbarra_pos_neg, Zfalta):
+    #Considerando um curto na fase "bc" e referência na fase "a"
+    Vpf = 1 + 0j
+    Zfalta = Zfalta/impedanciaBase(barraFalta, 100*10**6)
+    numeroBarraCurto = int(barraFalta.nome[1])-1
+    If_pos = Vpf/(Zbarra_pos_neg[numeroBarraCurto,numeroBarraCurto]*2+Zfalta)
+    If_neg = -If_pos
+    If = (transformadaFontescue(0, If_pos, If_neg)[1][0]*correnteBase(barraFalta,100*10**6), transformadaFontescue(0, If_pos, If_neg)[1][1])
+    return If, If_pos
+
+def correnteContribuicaoBifasica(If_pos, barraFalta, Zbarra_pos_neg):
+    numeroBarraCurto = int(barraFalta.nome[1])-1    
+    tensoesBarras = {} # Tensoes das barras sem correção
+    correntesDeContribuicao = {} # Correntes de contribuicao
+    Vpf = 1 + 0j
+    for i in range(len(ele_Sistema)):
+        if ele_Sistema[i].nome[0] == "M": #Maquina
+            barra = int(ele_Sistema[i].nome[1])-1
+            barraMaquina = barras_Sistema[barra]
+            V_pos = Vpf - If_pos*(Zbarra_pos_neg[numeroBarraCurto,barra])
+            V_neg = -(-If_pos)*(Zbarra_pos_neg[numeroBarraCurto,barra])
+            Vabc = transformadaFontescue(0,V_pos,V_neg)
+            tensoesBarras[ele_Sistema[i].nome] = Vabc
+
+            Icontribuicao_pos = (Vpf-V_pos)/(ele_Sistema[i].x_pos)
+            Icontribuicao_neg = (-V_neg)/(ele_Sistema[i].x_neg)
+            Iabc = transformadaFontescue(0,Icontribuicao_pos*correnteBase(barraMaquina,100*10**6),Icontribuicao_neg*correnteBase(barraMaquina,100*10**6))
+            correntesDeContribuicao[ele_Sistema[i].nome] = Iabc
+
+    return tensoesBarras, correntesDeContribuicao
